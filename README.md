@@ -69,6 +69,15 @@ Lors du premier `connect` pour un environnement, vous saisissez **login**, **mot
 
 En mode interactif (sans `-e`), `connect` propose en tête de liste les **dernières connexions** (jusqu'à 3 : combo *environnement / login / apps*), chacune annotée de sa fraîcheur (« connecté il y a 3h12 », avec ⚠️ si la session est probablement expirée). Sélectionnez-en une pour la rejouer directement. Pratique quand on jongle entre plusieurs sujets avec des comptes différents.
 
+Cette liste est **scopée à l'endroit d'où la commande est lancée** (répertoire courant, relatif à `appsRoot`) :
+
+- depuis `entcore/timeline` (ou un sous-dossier) : les 3 dernières connexions ayant ciblé l'app `timeline`.
+- depuis `entcore/` (à sa racine, sans app précise) : les 3 dernières connexions ayant ciblé au moins une app sous `entcore/` (peuvent concerner plusieurs modules différents).
+- depuis `actualites` (schéma racine directe) : les 3 dernières connexions ayant ciblé `actualites`.
+- ailleurs (hors de `appsRoot`, ou à sa racine) : comportement inchangé — les 3 dernières connexions, tous scopes confondus.
+
+Une connexion faite avec « toutes les applications » compte toujours comme pertinente, quel que soit le scope.
+
 Exemples :
 
 ```bash
@@ -121,7 +130,7 @@ Les données **non versionnées** (propres à chaque dev) sont centralisées dan
 
 - **Identifiants enregistrés** : `~/.dev-auth-fetcher/credentials/<userId>.json`
   - `userId` = nom d'utilisateur système par défaut ; surchargeable via `DEV_AUTH_USER`.
-  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et **historique des dernières connexions** (jusqu'à 3 : env, login, apps, horodatage et expiration estimée) pour les reconnexions rapides et `reconnect-last`.
+  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et **historique des dernières connexions** (env, login, apps, horodatage et expiration estimée) pour les reconnexions rapides et `reconnect-last`. Jusqu'à 20 combos sont conservés en stockage (pour permettre le filtrage par app, voir [Reconnexions rapides](#reconnexions-rapides)) ; l'affichage se limite toujours aux 3 plus pertinents pour le scope courant.
 
   > Migration automatique : si d'anciens fichiers existent (`config/app.config.json` et `./.dev-auth-fetcher/credentials/` à la racine du repo), ils sont repris une fois vers `~/.dev-auth-fetcher/` au premier lancement.
 
