@@ -1,7 +1,6 @@
-import inquirer from 'inquirer';
-
 import { discoverApps } from '../../core/apps/AppDiscovery.js';
 import type { AppSummary } from '../../core/apps/AppDiscovery.js';
+import { Separator, searchableCheckbox } from '../../utils/prompts/searchableCheckbox.js';
 
 export interface SelectAppsResult {
   apps: AppSummary[];
@@ -45,23 +44,17 @@ export async function selectAppsStep(
     return { apps: found ? [found] : [], allSelected: false };
   }
 
-  const choices = [
-    { name: 'Toutes les applications', value: CHOICE_ALL },
-    new inquirer.Separator(),
-    ...discovered.map((a) => ({
-      name: a.id !== a.name ? `${a.name} (${a.id})` : a.name,
-      value: a.id,
-    })),
-  ];
-
-  const { selected } = await inquirer.prompt<{ selected: string[] }>([
-    {
-      type: 'checkbox',
-      name: 'selected',
-      message: 'Sélectionnez les applications à mettre à jour :',
-      choices,
-    },
-  ]);
+  const selected = await searchableCheckbox({
+    message: 'Sélectionnez les applications à mettre à jour :',
+    choices: [
+      { name: 'Toutes les applications', value: CHOICE_ALL, pinned: true },
+      new Separator(),
+      ...discovered.map((a) => ({
+        name: a.id !== a.name ? `${a.name} (${a.id})` : a.name,
+        value: a.id,
+      })),
+    ],
+  });
 
   if (selected.includes(CHOICE_ALL)) {
     return { apps: discovered, allSelected: true };
