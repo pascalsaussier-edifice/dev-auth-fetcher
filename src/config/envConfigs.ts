@@ -105,6 +105,11 @@ export const DEFAULT_ENVIRONMENTS: EnvironmentConfig[] = [
     url: 'https://recette-ode4.opendigitaleducation.com/',
   },
   {
+    id: 'recette-ode5',
+    label: 'Recette ODE 5',
+    url: 'https://recette-ode5.opendigitaleducation.com/',
+  },
+  {
     id: 'recette-release',
     label: 'Recette Release',
     url: 'https://recette-release.opendigitaleducation.com/',

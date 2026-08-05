@@ -24,12 +24,13 @@ describe('envConfigs', () => {
   });
 
   it('DEFAULT_ENVIRONMENTS contient les 6 environnements attendus', () => {
-    expect(DEFAULT_ENVIRONMENTS).toHaveLength(6);
+    expect(DEFAULT_ENVIRONMENTS).toHaveLength(7);
     const ids = DEFAULT_ENVIRONMENTS.map((e) => e.id);
     expect(ids).toContain('recette-ode1');
     expect(ids).toContain('recette-ode2');
     expect(ids).toContain('recette-ode3');
     expect(ids).toContain('recette-ode4');
+    expect(ids).toContain('recette-ode5');
     expect(ids).toContain('recette-release');
     expect(ids).toContain('local');
   });
