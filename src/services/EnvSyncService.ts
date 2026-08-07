@@ -363,12 +363,9 @@ export class EnvSyncService {
           : null;
     const recentSection: Array<inquirer.Separator | (typeof recentChoices)[number]> = [];
     if (scopedCount > 0) {
-      if (scopeLabel) recentSection.push(new inquirer.Separator(`── ${scopeLabel} ──`));
       recentSection.push(...recentChoices.slice(0, scopedCount));
     }
     if (scopedCount < recentChoices.length) {
-      if (scopedCount > 0)
-        recentSection.push(new inquirer.Separator('── Autres connexions récentes ──'));
       recentSection.push(...recentChoices.slice(scopedCount));
     }
     const envChoices = envs.map((e) => ({ name: `${e.label} (${e.url})`, value: e.id }));
