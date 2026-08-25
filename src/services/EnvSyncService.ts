@@ -355,12 +355,7 @@ export class EnvSyncService {
       name: `🔄 ${r.envId} / ${r.login} (${describeLastConnectionApps(r)}) — ${describeFreshness(r)}`,
       value: `${RECONNECT_CHOICE}:${i}`,
     }));
-    const scopeLabel =
-      scope.kind === 'app'
-        ? `Récentes — ${scope.appName}`
-        : scope.kind === 'entcore-group'
-          ? 'Récentes — entcore'
-          : null;
+
     const recentSection: Array<inquirer.Separator | (typeof recentChoices)[number]> = [];
     if (scopedCount > 0) {
       recentSection.push(...recentChoices.slice(0, scopedCount));
