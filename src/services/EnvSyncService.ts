@@ -5,13 +5,15 @@ import { loadAppConfig } from '../config/appConfig.js';
 import type { EnvironmentConfig } from '../config/config.types.js';
 import {
   addOrUpdateProfileForEnvironment,
-  getRecentConnections,
+  getRecentConnectionsForScope,
+  matchesAppScope,
   recordConnection,
   type LastConnection,
   type RecentConnection,
 } from '../config/credentialsStore.js';
 import { listEnvironments, getEnvironmentById } from '../config/envConfigs.js';
 import type { AppSummary } from '../core/apps/AppDiscovery.js';
+import { detectAppScope } from '../core/apps/AppScope.js';
 import type { AuthCookies, IAuthClient } from '../core/auth/AuthClient.js';
 import { FetchAuthClient } from '../core/auth/FetchAuthClient.js';
 import { updateAppsEnv } from '../core/env/EnvManager.js';
@@ -141,7 +143,7 @@ export class EnvSyncService {
       return;
     }
 
-    const resolved = await this.resolveEnvironment(options);
+    const resolved = await this.resolveEnvironment(options, config.appsRoot);
     if (resolved === 'reconnect') return; // une reconnexion rapide a déjà été rejouée
     if (!resolved) return;
     const { env } = resolved;
@@ -323,7 +325,8 @@ export class EnvSyncService {
    * reconnexion rapide a été rejouée, ou `null` en cas d'abandon / erreur.
    */
   private async resolveEnvironment(
-    options: ConnectOptions
+    options: ConnectOptions,
+    appsRoot: string
   ): Promise<{ env: EnvironmentConfig; envId: string } | 'reconnect' | null> {
     if (options.env) {
       const env = await getEnvironmentById(options.env);
@@ -340,14 +343,29 @@ export class EnvSyncService {
       return null;
     }
 
-    const recents = await getRecentConnections();
+    // Scope la liste des connexions récentes à l'app (ou au groupe entcore) depuis lequel la
+    // commande est lancée ; en dehors de appsRoot, comportement inchangé (les plus récentes).
+    // Si le scope ne fournit pas 3 résultats, le reste est complété par les plus récentes tous
+    // scopes confondus (cf. getRecentConnectionsForScope) — la liste ci-dessous distingue les
+    // deux groupes pour que ce complément reste explicite.
+    const scope = detectAppScope(appsRoot, process.cwd());
+    const recents = await getRecentConnectionsForScope(scope);
+    const scopedCount = recents.filter((r) => matchesAppScope(r, scope)).length;
     const recentChoices = recents.map((r, i) => ({
       name: `🔄 ${r.envId} / ${r.login} (${describeLastConnectionApps(r)}) — ${describeFreshness(r)}`,
       value: `${RECONNECT_CHOICE}:${i}`,
     }));
+
+    const recentSection: Array<inquirer.Separator | (typeof recentChoices)[number]> = [];
+    if (scopedCount > 0) {
+      recentSection.push(...recentChoices.slice(0, scopedCount));
+    }
+    if (scopedCount < recentChoices.length) {
+      recentSection.push(...recentChoices.slice(scopedCount));
+    }
     const envChoices = envs.map((e) => ({ name: `${e.label} (${e.url})`, value: e.id }));
-    const choices = recentChoices.length
-      ? [...recentChoices, new inquirer.Separator(), ...envChoices]
+    const choices = recentSection.length
+      ? [...recentSection, new inquirer.Separator(), ...envChoices]
       : envChoices;
 
     const { selectedEnvId } = await inquirer.prompt<{ selectedEnvId: string }>([

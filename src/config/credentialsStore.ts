@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+import type { AppScope } from '../core/apps/AppScope.js';
 import { getCredentialsDir, getLegacyCredentialsDir } from '../utils/paths.js';
 
 import type { UserProfile } from './config.types.js';
@@ -26,14 +27,22 @@ export interface RecentConnection extends LastConnection {
 
 export interface UserCredentialsStore {
   environmentProfiles: Record<string, UserProfile[]>;
-  /** plus-récent-d'abord, dédupliqué par signature, plafonné à RECENT_CONNECTIONS_CAP. */
+  /** plus-récent-d'abord, dédupliqué par signature, plafonné à RECENT_CONNECTIONS_STORAGE_CAP. */
   recentConnections?: RecentConnection[];
   /** legacy mono-entrée : lu pour migration uniquement, plus écrit. */
   lastConnection?: LastConnection;
 }
 
-/** Nombre maximum de connexions récentes conservées. */
-const RECENT_CONNECTIONS_CAP = 3;
+/**
+ * Nombre maximum de connexions récentes conservées en stockage. Plus grand que ce qui est
+ * affiché (cf. RECENT_CONNECTIONS_DISPLAY_LIMIT) pour que le filtrage par scope d'app
+ * (getRecentConnectionsForScope) ait assez d'historique pour retrouver 3 combos pertinents
+ * même quand l'utilisateur alterne entre plusieurs apps/environnements.
+ */
+const RECENT_CONNECTIONS_STORAGE_CAP = 20;
+
+/** Nombre de connexions récentes affichées, globalement ou pour un scope d'app donné. */
+export const RECENT_CONNECTIONS_DISPLAY_LIMIT = 3;
 
 const DEFAULT_STORE: UserCredentialsStore = {
   environmentProfiles: {},
@@ -163,6 +172,44 @@ export async function getRecentConnections(): Promise<RecentConnection[]> {
 }
 
 /**
+ * true si une connexion est pertinente pour un scope d'app (cf. detectAppScope) : une
+ * connexion "toutes les apps" correspond toujours ; sinon on regarde si l'app du scope (ou,
+ * pour le groupe entcore, une app `entcore/*`) fait partie de la sélection enregistrée.
+ */
+export function matchesAppScope(
+  c: Pick<LastConnection, 'allApps' | 'appIds' | 'appNames'>,
+  scope: AppScope
+): boolean {
+  if (scope.kind === 'none') return true;
+  if (c.allApps) return true;
+  if (scope.kind === 'entcore-group') {
+    return c.appIds?.some((id) => id.startsWith('entcore/')) ?? false;
+  }
+  return (
+    (c.appIds?.includes(scope.appId) ?? false) || (c.appNames?.includes(scope.appName) ?? false)
+  );
+}
+
+/**
+ * Connexions récentes filtrées par scope d'app (plus-récent-d'abord), plafonnées à `limit`.
+ * Si le scope ne fournit pas assez de résultats (moins de `limit`), complète avec les
+ * connexions récentes les plus récentes tous scopes confondus (sans dupliquer celles déjà
+ * retenues). Scope `'none'` : comportement inchangé (les plus récentes, tous scopes confondus).
+ */
+export async function getRecentConnectionsForScope(
+  scope: AppScope,
+  limit: number = RECENT_CONNECTIONS_DISPLAY_LIMIT
+): Promise<RecentConnection[]> {
+  const recents = await getRecentConnections();
+  const scoped = recents.filter((c) => matchesAppScope(c, scope));
+  if (scoped.length >= limit) return scoped.slice(0, limit);
+
+  const scopedSignatures = new Set(scoped.map((c) => connectionSignature(c)));
+  const fallback = recents.filter((c) => !scopedSignatures.has(connectionSignature(c)));
+  return [...scoped, ...fallback].slice(0, limit);
+}
+
+/**
  * Retourne la connexion la plus récente si disponible (rétrocompatibilité reconnect-last).
  */
 export async function getLastConnection(): Promise<LastConnection | null> {
@@ -187,7 +234,8 @@ export async function getLoginRecency(envId: string): Promise<Map<string, number
 
 /**
  * Enregistre une connexion (envId, login, sélection d'apps, expiration) en tête de
- * l'historique : déduplique par signature, place en premier, plafonne à RECENT_CONNECTIONS_CAP.
+ * l'historique : déduplique par signature, place en premier, plafonne à
+ * RECENT_CONNECTIONS_STORAGE_CAP.
  */
 export async function recordConnection(
   envId: string,
@@ -209,6 +257,6 @@ export async function recordConnection(
   const previous = (store.recentConnections ?? []).filter(
     (c) => connectionSignature(c) !== signature
   );
-  store.recentConnections = [entry, ...previous].slice(0, RECENT_CONNECTIONS_CAP);
+  store.recentConnections = [entry, ...previous].slice(0, RECENT_CONNECTIONS_STORAGE_CAP);
   await saveUserCredentialsStore(store);
 }
